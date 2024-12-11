@@ -61,3 +61,9 @@ pub struct CreateUrlRequest {
     #[serde(rename = "userId")]
     pub user_id: String,
 }
+
+#[derive(Deserialize)]
+pub struct UpdateUrlRequest {
+    pub original_url: Option<String>,
+    pub expiration: Option<DateTime<Utc>>,
+}

@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// Inserts a new user into the database.
-#[post("/user")]
+#[post("/")]
 pub async fn create_user(
     db_pool: web::Data<DatabasePool>,
     req_body: web::Json<CreateUserRequest>,
@@ -56,7 +56,7 @@ pub async fn create_user(
     }
 }
 
-#[get("/user")]
+#[get("/")]
 
 async fn list_users(db_pool: web::Data<DatabasePool>) -> impl Responder {
     match sqlx::query_as::<_, User>("SELECT * FROM users")
