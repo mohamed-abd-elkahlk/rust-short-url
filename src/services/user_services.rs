@@ -1,9 +1,16 @@
-use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web::{
+    get, post, web,
+    web::{Data, Path},
+    HttpResponse, Responder,
+};
 use serde_json::json;
 
 use crate::{
     database::DatabasePool,
-    schema::user::{CreateUserRequest, User},
+    schema::{
+        url::ShortUrl,
+        user::{CreateUserRequest, User},
+    },
 };
 
 /// Inserts a new user into the database.
@@ -67,6 +74,29 @@ async fn list_users(db_pool: web::Data<DatabasePool>) -> impl Responder {
         Err(e) => {
             eprintln!("Database query error: {:?}", e);
             HttpResponse::InternalServerError().json("Failed to retrieve users")
+        }
+    }
+}
+
+#[get("/{user_id}/urls")]
+pub async fn list_user_urls(path: Path<String>, db: Data<DatabasePool>) -> impl Responder {
+    let user_id = path.into_inner();
+    match sqlx::query_as::<_, ShortUrl>(
+        r#"
+        SELECT * FROM short_urls WHERE user_id = ?
+        "#,
+    )
+    .bind(user_id) // Bind the user_id to the query
+    .fetch_all(db.as_ref())
+    .await
+    {
+        Ok(urls) => {
+            // Log the result (optional)
+            HttpResponse::Ok().json(urls) // Return the list of URLs as JSON
+        }
+        Err(err) => {
+            eprintln!("Database query failed: {}", err); // Log the error
+            HttpResponse::InternalServerError().json("Internal Server Error") // Return a 500 response
         }
     }
 }

@@ -46,29 +46,6 @@ pub async fn create_short_url(
     }
 }
 
-#[get("/{user_id}")]
-pub async fn list_user_urls(path: Path<String>, db: Data<DatabasePool>) -> impl Responder {
-    let user_id = path.into_inner();
-    match sqlx::query_as::<_, ShortUrl>(
-        r#"
-        SELECT * FROM short_urls WHERE user_id = ?
-        "#,
-    )
-    .bind(user_id) // Bind the user_id to the query
-    .fetch_all(db.as_ref())
-    .await
-    {
-        Ok(urls) => {
-            // Log the result (optional)
-            HttpResponse::Ok().json(urls) // Return the list of URLs as JSON
-        }
-        Err(err) => {
-            eprintln!("Database query failed: {}", err); // Log the error
-            HttpResponse::InternalServerError().json("Internal Server Error") // Return a 500 response
-        }
-    }
-}
-
 #[put("/{url_id}/update")]
 pub async fn update_url(
     url_id: Path<String>,
@@ -153,5 +130,74 @@ pub async fn delete_url(
             eprintln!("Error deleting URL: {}", err);
             HttpResponse::InternalServerError().json("Failed to delete URL")
         }
+    }
+}
+
+/// Handle redirect from short URL to original URL.
+#[get("/s/{short_code}")]
+pub async fn redirect_to_original(
+    short_code: Path<String>,    // Extract short code from the URL
+    db_pool: Data<DatabasePool>, // Inject the database pool
+) -> impl Responder {
+    // Query the database for the short URL's corresponding original URL
+    let short_url = sqlx::query_as::<_, ShortUrl>(
+        r#"
+        SELECT * FROM short_urls WHERE short_code = ?
+        "#,
+    )
+    .bind(short_code.into_inner()) // Bind the short code to the query
+    .fetch_optional(&**db_pool) // Fetch the URL, or return None if not found
+    .await;
+
+    match short_url {
+        Ok(Some(url)) => {
+            // Increment the click_count for the short URL in the database
+            let update_result = sqlx::query(
+                r#"
+                UPDATE short_urls 
+                SET click_count = click_count + 1 
+                WHERE short_code = ?
+                "#,
+            )
+            .bind(&url.short_code) // Bind the short code to the query
+            .execute(&**db_pool)
+            .await;
+
+            if let Err(err) = update_result {
+                // Log or handle the error if updating click count fails
+                eprintln!("Failed to update click count: {:?}", err);
+            }
+
+            // Redirect the user to the original URL
+            HttpResponse::Found()
+                .append_header(("Location", url.original_url))
+                .finish()
+        }
+        Ok(None) => {
+            // Return 404 if the short URL does not exist in the database
+            HttpResponse::NotFound().json("Short URL not found")
+        }
+        Err(_) => {
+            // Handle database query error
+            HttpResponse::InternalServerError().json("Internal Server Error")
+        }
+    }
+}
+
+/// Handle retrieving short URL details by ID.
+#[get("/{url_id}")]
+pub async fn get_short_url_by_id(
+    url_id: Path<String>,
+    db_pool: Data<DatabasePool>,
+) -> impl Responder {
+    let url_id = url_id.into_inner();
+    println!("{}", url_id);
+    match sqlx::query_as::<_, ShortUrl>("SELECT * FROM short_urls WHERE id = ?")
+        .bind(url_id)
+        .fetch_one(db_pool.as_ref())
+        .await
+    {
+        Ok(url) => HttpResponse::Found().json(url),
+        Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
     }
 }

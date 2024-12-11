@@ -18,7 +18,6 @@ pub struct ShortUrl {
     #[serde(skip_serializing_if = "Option::is_none")] // Don't serialize if it's None
     pub expiration: Option<DateTime<Utc>>,
 
-    #[serde(skip_serializing)] // Click count is internal, not exposed via API
     pub click_count: u64,
 
     #[serde(default)]
@@ -41,11 +40,6 @@ impl Default for ShortUrl {
 }
 
 impl ShortUrl {
-    /// Increment the click count.
-    pub fn increment_click_count(&mut self) {
-        self.click_count += 1;
-    }
-
     /// Check if the URL is expired.
     pub fn is_expired(&self) -> bool {
         self.expiration.map(|exp| Utc::now() > exp).unwrap_or(false)
