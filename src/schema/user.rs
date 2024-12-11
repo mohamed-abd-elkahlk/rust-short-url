@@ -32,7 +32,7 @@ impl Default for User {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             is_active: false,
-            roles: Json(vec![]),
+            roles: Json(vec!["user".to_owned()]),
         }
     }
 }
