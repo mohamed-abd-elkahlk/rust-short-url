@@ -1,4 +1,4 @@
-use actix_url_shortener::generate_uuid;
+use actix_url_shortener::{generate_password_hash, generate_uuid};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{prelude::FromRow, types::Json};
@@ -39,7 +39,7 @@ impl Default for User {
 impl User {
     /// Hashes a password using bcrypt and updates the `password` field.
     pub fn set_password(&mut self, plain_password: &str) -> Result<&mut Self, bcrypt::BcryptError> {
-        let hashed_password = bcrypt::hash(plain_password, bcrypt::DEFAULT_COST)?;
+        let hashed_password = generate_password_hash(plain_password)?;
         self.password = hashed_password;
         Ok(self) // Return a mutable reference to the instance
     }
@@ -69,4 +69,11 @@ pub struct CreateUserRequest {
     pub username: String,
     pub email: String,
     pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateUserRequest {
+    pub username: Option<String>,
+    pub email: Option<String>,
+    pub password: Option<String>,
 }

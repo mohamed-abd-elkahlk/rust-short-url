@@ -1,3 +1,4 @@
+use bcrypt::BcryptError;
 use serde::{Deserialize, Deserializer, Serializer};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -5,6 +6,11 @@ use uuid::Uuid;
 /// Function to generate a default UUID for the `id` field
 pub fn generate_uuid() -> String {
     Uuid::new_v4().to_string()
+}
+
+pub fn generate_password_hash(plain_password: &str) -> Result<String, BcryptError> {
+    let hashed_password = bcrypt::hash(plain_password, bcrypt::DEFAULT_COST)?;
+    Ok(hashed_password)
 }
 
 /// Generates a short code based on the hash of the original URL.

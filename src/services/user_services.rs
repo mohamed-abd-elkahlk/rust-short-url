@@ -1,6 +1,7 @@
+use actix_url_shortener::generate_password_hash;
 use actix_web::{
-    get, post, web,
-    web::{Data, Path},
+    delete, get, post, put,
+    web::{self, Data, Json, Path},
     HttpResponse, Responder,
 };
 use serde_json::json;
@@ -9,7 +10,7 @@ use crate::{
     database::DatabasePool,
     schema::{
         url::ShortUrl,
-        user::{CreateUserRequest, User},
+        user::{CreateUserRequest, UpdateUserRequest, User},
     },
 };
 
@@ -64,8 +65,8 @@ pub async fn create_user(
 }
 
 #[get("/")]
-
-async fn list_users(db_pool: web::Data<DatabasePool>) -> impl Responder {
+pub async fn list_users(db_pool: web::Data<DatabasePool>) -> impl Responder {
+    println!("run the function");
     match sqlx::query_as::<_, User>("SELECT * FROM users")
         .fetch_all(db_pool.get_ref())
         .await
@@ -97,6 +98,101 @@ pub async fn list_user_urls(path: Path<String>, db: Data<DatabasePool>) -> impl 
         Err(err) => {
             eprintln!("Database query failed: {}", err); // Log the error
             HttpResponse::InternalServerError().json("Internal Server Error") // Return a 500 response
+        }
+    }
+}
+
+#[delete("/{user_id}")]
+pub async fn delete_user_by_id(user_id: Path<String>, db: Data<DatabasePool>) -> impl Responder {
+    match sqlx::query("DELETE FROM users WHERE id = ? ")
+        .bind(user_id.into_inner())
+        .execute(db.as_ref())
+        .await
+    {
+        Ok(result) => {
+            if result.rows_affected() > 0 {
+                // If rows are affected, return a success response
+                HttpResponse::Ok().json("User deleted successfully")
+            } else {
+                // If no rows were affected (i.e., the URL ID was not found)
+                HttpResponse::NotFound().json("User not found")
+            }
+        }
+        Err(err) => {
+            // Handle database errors
+            eprintln!("Error deleting URL: {}", err);
+            HttpResponse::InternalServerError().json("Failed to delete URL")
+        }
+    }
+}
+
+#[get("/{user_id}")]
+pub async fn get_user_by_id(user_id: Path<String>, db: Data<DatabasePool>) -> impl Responder {
+    match sqlx::query_as::<_, User>("SELECT * FROM user WHERE id = ?")
+        .bind(user_id.into_inner())
+        .fetch_one(db.as_ref())
+        .await
+    {
+        Ok(user) => HttpResponse::Found().json(user),
+        Err(e) => {
+            eprint!("{:?}", e);
+            HttpResponse::NotFound().json("Fiald to find user")
+        }
+    }
+}
+
+#[put("/{user_id}")]
+pub async fn update_user_by_id(
+    user_id: Path<String>,
+    updated_user: Json<UpdateUserRequest>,
+    db: Data<DatabasePool>,
+) -> impl Responder {
+    let user_id = user_id.into_inner();
+    let updated_user = updated_user.into_inner();
+
+    let mut query = String::from("UPDATE users SET ");
+    let mut params = vec![];
+
+    if let Some(username) = updated_user.username {
+        query.push_str("username = ?, ");
+        params.push(username);
+    }
+    if let Some(email) = updated_user.email {
+        query.push_str("email = ?, ");
+        params.push(email);
+    }
+    if let Some(password) = updated_user.password {
+        query.push_str("password = ?, ");
+        let hashed_password = generate_password_hash(&password).unwrap();
+        params.push(hashed_password);
+    }
+
+    // Remove the trailing comma and space from the query
+    if query.ends_with(", ") {
+        query.pop();
+        query.pop();
+    }
+
+    // Add the WHERE clause to target the correct user by ID
+    query.push_str(" WHERE id = ?");
+    params.push(user_id);
+
+    let mut query_builder = sqlx::query(&query);
+    for param in params {
+        query_builder = query_builder.bind(param);
+    }
+
+    match query_builder.execute(db.as_ref()).await {
+        Ok(result) => {
+            if result.rows_affected() > 0 {
+                HttpResponse::Ok().json("User updated successfully")
+            } else {
+                HttpResponse::NotFound().json("User not found")
+            }
+        }
+        Err(err) => {
+            eprintln!("Error updating user: {}", err);
+            HttpResponse::InternalServerError().json("Failed to update user")
         }
     }
 }
