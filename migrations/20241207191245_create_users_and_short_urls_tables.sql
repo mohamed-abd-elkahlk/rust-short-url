@@ -12,8 +12,11 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS short_urls (
     id VARCHAR(36) PRIMARY KEY,
     original_url TEXT NOT NULL,
-    short_code VARCHAR(10) UNIQUE NOT NULL,
+    short_code VARCHAR(11) UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expiration TIMESTAMP NULL,
-    click_count BIGINT DEFAULT 0
+    click_count BIGINT UNSIGNED DEFAULT 0,
+    user_id VARCHAR(36),
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE
+    SET NULL
 );
