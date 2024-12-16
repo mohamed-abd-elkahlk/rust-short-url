@@ -51,9 +51,6 @@ impl ShortUrl {
 pub struct CreateUrlRequest {
     #[serde(rename = "originalUrl")]
     pub original_url: String,
-
-    #[serde(rename = "userId")]
-    pub user_id: String,
 }
 
 #[derive(Deserialize)]

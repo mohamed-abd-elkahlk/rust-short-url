@@ -2,6 +2,7 @@ use crate::schema::auth::Claims;
 use actix_web::body::MessageBody;
 use actix_web::dev::ServiceResponse;
 use actix_web::error::ErrorUnauthorized;
+use actix_web::HttpMessage;
 use actix_web::{dev::ServiceRequest, middleware::Next, Error};
 use jsonwebtoken::{decode, DecodingKey, Validation};
 
@@ -23,26 +24,22 @@ pub async fn verify_jwt_and_role(
         ) {
             Ok(token_data) => {
                 if token_data.claims.roles == required_roles {
-                    // At least one role matches, continue the request
+                    // Store Claims in the request extensions
+                    req.extensions_mut().insert(token_data.claims);
                     next.call(req).await
                 } else {
-                    // No roles match, reject the request
                     Err(ErrorUnauthorized(format!(
                         "Access denied. Required roles: {:?}, but found: {:?}",
                         required_roles, token_data.claims.roles
                     )))
                 }
             }
-            Err(err) => {
-                // Token is invalid or expired
-                Err(ErrorUnauthorized(format!(
-                    "Invalid or expired token:{}",
-                    err
-                )))
-            }
+            Err(err) => Err(ErrorUnauthorized(format!(
+                "Invalid or expired token: {}",
+                err
+            ))),
         }
     } else {
-        // No access token cookie found, reject the request
         Err(ErrorUnauthorized("Missing access token"))
     }
 }

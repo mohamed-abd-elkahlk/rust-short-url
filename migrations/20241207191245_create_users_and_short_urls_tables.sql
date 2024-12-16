@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS short_urls (
     id VARCHAR(36) PRIMARY KEY,
     original_url TEXT NOT NULL,
-    short_code VARCHAR(11) UNIQUE NOT NULL,
+    short_code VARCHAR(11) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expiration TIMESTAMP NULL,
     click_count BIGINT UNSIGNED DEFAULT 0,
