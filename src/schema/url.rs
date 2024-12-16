@@ -1,4 +1,4 @@
-use actix_url_shortener::generate_uuid; // Ensure this function exists in your module
+use actix_url_shortener::generate_uuid;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;

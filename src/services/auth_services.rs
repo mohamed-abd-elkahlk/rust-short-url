@@ -1,12 +1,14 @@
+use std::env;
+
 use crate::schema::{
     auth::{Claims, LoginRequest},
     user::{CreateUserRequest, User},
 };
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{cookie::Cookie, get, post, web, HttpRequest, HttpResponse, Responder};
 use bcrypt::verify;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
-#[post("/register")]
+#[post("/sign-up")]
 pub async fn register_user(
     db_pool: web::Data<sqlx::MySqlPool>,
     req_body: web::Json<CreateUserRequest>,
@@ -19,7 +21,7 @@ pub async fn register_user(
     user.set_password(&req.password).unwrap();
     user.email = req.email; // Use `clone` to ensure a valid reference
     user.username = req.username; // Use `clone` to ensure a valid reference
-
+    user.is_active = true;
     let query = r#"
         INSERT INTO users (id, username, email, password, is_active, roles)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -30,23 +32,41 @@ pub async fn register_user(
         .bind(&user.username)
         .bind(&user.email)
         .bind(&user.password)
-        .bind(true)
+        .bind(&user.is_active)
         .bind(&user.roles)
         .execute(db_pool.get_ref())
         .await;
 
     match result {
-        Ok(_) => HttpResponse::Created().json(json!({
-            "message": "User registered successfully",
-            "data":user
-        })),
+        Ok(_) => {
+            let secret_key = env::var("SECRET").expect("msg");
+            let claims = Claims::new(user.id.clone(), user.roles.first().unwrap().to_string());
+            let token = encode(
+                &Header::default(),
+                &claims,
+                &EncodingKey::from_secret(secret_key.as_bytes()),
+            )
+            .unwrap();
+
+            HttpResponse::Created()
+                .cookie(
+                    Cookie::build("access_token", token)
+                        .path("/")
+                        .http_only(true)
+                        .finish(),
+                )
+                .json(json!({
+                    "message": "User registered successfully",
+                    "data":user
+                }))
+        }
         Err(_) => HttpResponse::Conflict().json(json!({
             "error": "Username or email already exists"
         })),
     }
 }
 
-#[post("/login")]
+#[post("/sign-in")]
 pub async fn login_user(
     db_pool: web::Data<sqlx::MySqlPool>,
     req_body: web::Json<LoginRequest>,
@@ -65,20 +85,25 @@ pub async fn login_user(
     };
 
     if verify(req.password, &user.password).unwrap_or(false) {
-        let exp_time = chrono::Utc::now().timestamp() + 3600; // Token valid for 1 hour
-        let claims = Claims {
-            sub: user.id,
-            exp: exp_time as usize,
-        };
+        let claims = Claims::new(user.id, user.roles.first().unwrap().to_string());
+
+        let secret_key = env::var("SECRET").expect("msg");
 
         let token = encode(
             &Header::default(),
             &claims,
-            &EncodingKey::from_secret(b"secret_key"),
+            &EncodingKey::from_secret(secret_key.as_bytes()),
         )
         .unwrap();
 
-        HttpResponse::Ok().json(json!({ "token": token }))
+        HttpResponse::Ok()
+            .cookie(
+                Cookie::build("access_token", &token)
+                    .path("/")
+                    .http_only(true)
+                    .finish(),
+            )
+            .json(json!({ "token": token }))
     } else {
         HttpResponse::Unauthorized().json(json!({ "error": "Invalid email or password" }))
     }

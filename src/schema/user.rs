@@ -44,17 +44,6 @@ impl User {
         Ok(self) // Return a mutable reference to the instance
     }
 
-    /// Verifies that a provided password matches the user's stored (hashed) password.
-    pub fn verify_password(&self, plain_password: &str) -> Result<bool, bcrypt::BcryptError> {
-        bcrypt::verify(plain_password, &self.password)
-    }
-
-    /// Updates the `updated_at` timestamp to the current time.
-    pub fn touch(&mut self) -> &mut Self {
-        self.updated_at = Utc::now();
-        self // Return a mutable reference to the instance
-    }
-
     /// Set the default role for the user if no roles are specified.
     pub fn set_roles(&mut self) -> &mut Self {
         if self.roles.is_empty() {
